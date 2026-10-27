@@ -1,0 +1,102 @@
+(version 1)
+
+;; Domyślna polityka: blokuj wszystko, na co nie zezwolono wprost (Deny by default)
+(deny default)
+
+;; Pomocnicze funkcje dla ścieżek względem katalogu domowego użytkownika
+(define (home-subpath path)
+    (subpath (string-append (param "HOME_DIR") path)))
+
+(define (home-literal path)
+    (literal (string-append (param "HOME_DIR") path)))
+
+;; 1. Zarządzanie procesami (Process Execution & Lifecycle)
+(allow process-exec)
+(allow process-fork)
+(allow process-info*)
+(allow signal)
+
+;; 2. System, jądro, IPC i terminale
+(allow sysctl*)
+(allow pseudo-terminal)
+(allow iokit-open)
+(allow ipc-posix*)
+(allow mach-lookup)
+(allow mach-register)
+(allow user-preference-read)
+
+;; 3. Dostęp do sieci (Networking)
+;; Wychodzący ruch sieciowy niezbędny do komunikacji z API modeli Gemini/LLM oraz pobierania zależności
+(allow network-outbound)
+(allow network-inbound (local ip "localhost:*"))
+(allow network-bind (local ip "localhost:*"))
+(allow system-socket)
+
+;; 4. Odczyt metadanych systemu plików (stat/lstat - wymagane do nawigacji po strukturze katalogów)
+(allow file-read-metadata)
+
+;; 5. Odczyt plików systemowych, bibliotek i standardowych narzędzi macOS (TYLKO ODCZYT)
+(allow file-read*
+    (subpath "/usr")
+    (subpath "/bin")
+    (subpath "/sbin")
+    (subpath "/System")
+    (subpath "/Library")
+    (subpath "/Applications")
+    (subpath "/opt")
+    (subpath "/private/etc")
+    (subpath "/etc")
+    (subpath "/dev"))
+
+;; 6. Katalogi tymczasowe i pliki specjalne urządzeń (ODCZYT i ZAPIS)
+(allow file-read* file-write*
+    (subpath "/tmp")
+    (subpath "/private/tmp")
+    (subpath "/var/tmp")
+    (subpath "/private/var/tmp")
+    (subpath "/var/folders")
+    (subpath "/private/var/folders")
+    (literal "/dev/null")
+    (literal "/dev/zero")
+    (literal "/dev/random")
+    (literal "/dev/urandom")
+    (literal "/dev/tty")
+    (literal "/dev/ptmx")
+    (subpath "/dev/fd")
+    (subpath "/dev/ttys"))
+
+(allow file-ioctl
+    (literal "/dev/tty")
+    (literal "/dev/ptmx")
+    (subpath "/dev/ttys"))
+
+;; 7. Pliki konfiguracyjne i profile użytkownika w $HOME
+;; Odczyt konfiguracji powłoki (zsh/bash/git) dla zachowania poprawnego środowiska CLI
+(allow file-read*
+    (home-literal "/.zshrc")
+    (home-literal "/.zshenv")
+    (home-literal "/.zprofile")
+    (home-literal "/.bashrc")
+    (home-literal "/.bash_profile")
+    (home-literal "/.profile")
+    (home-literal "/.gitconfig")
+    (home-subpath "/.config/git"))
+
+;; Zezwolenie na odczyt i zapis w katalogach Antigravity CLI / Gemini (tokeny, autoryzacja, cache)
+(allow file-read* file-write*
+    (home-subpath "/.gemini")
+    (home-subpath "/.config/antigravity")
+    (home-subpath "/Library/Application Support/Antigravity")
+    (home-subpath "/Library/Caches/Antigravity")
+    (home-subpath "/Library/Caches/gemini")
+    (home-subpath "/Library/Logs/Antigravity"))
+
+;; 8. KATALOG PROJEKTU: Pełne uprawnienia do pracy nad kodem projektu (ODCZYT i ZAPIS)
+(allow file-read* file-write*
+    (subpath (param "PROJECT_DIR")))
+
+;; --- Opcjonalne rozszerzenia (odkomentuj w razie potrzeby) ---
+;; Jeśli projekt Android wymaga dostępu do lokalnego Android SDK lub pamięci podręcznej Gradle:
+;; (allow file-read* (home-subpath "/Library/Android/sdk"))
+;; (allow file-read* file-write* (home-subpath "/.gradle"))
+;; (allow file-read* (home-subpath "/.android"))
